@@ -1,89 +1,109 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   main.c                                             :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: turmoil <jtsiros93@gmail.com>              +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/03/13 09:51:14 by turmoil           #+#    #+#             */
-/*   Updated: 2025/03/13 13:31:31 by turmoil          ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
-/*
-    Parse Arguments: Extract file1, cmd1, cmd2, and file2 from argv.
-    Open Files:
-        Open file1 for reading. O_RDONLY
-        Open file2 for writing. O_WRONLY | O_CREAT | O_TRUNC, 0644)
-    Create a Pipe using pipe().
-    Fork Two Processes:
-        Child 1:
-            Redirect file1 to stdin.
-            Redirect pipe write-end (fd[1]) to stdout.
-            Execute cmd1 using execve().
-        Child 2:
-            Redirect pipe read-end (fd[0]) to stdin.
-            Redirect file2 to stdout.
-            Execute cmd2 using execve().
-    Close Unused File Descriptors.
-    Wait for Both Child Processes.
-
-3. Required System Calls
-
-You'll need:
-
-    open(), close(), read(), write() → For file handling.
-    pipe(), dup2(), fork() → For creating pipes and handling processes.
-    execve() → To execute commands.
-    waitpid() → To wait for child processes.		*/
-
-
 #include "../pipex.h"
+#include <unistd.h>
+
+void	error_handler(char *error)
+{
+	perror(error);
+	exit(EXIT_FAILURE);
+}
+
+char	*find_exec(char **cmd, char **dirs)
+{
+	char	*path;
+	char	*tmp;
+
+	while (*dirs)
+	{
+		tmp = ft_strjoin(*dirs, "/");
+		path = ft_strjoin(tmp, cmd[0]);
+		free(tmp);
+		if (access(path, X_OK) == 0)
+			return (path);
+		free(path);
+		dirs++;
+	}
+	return (NULL);
+}
+
+char	*_get_path(char **envp)
+{
+	char	*path;
+
+	while (*envp)
+	{
+		path = ft_strnstr(*envp, "PATH=", 5);
+		if (path != NULL)
+			break ;
+		envp++;
+	}
+	return (path + 5);
+}
+
+static void	_init_files(char **av, t_data *data)
+{
+	data->fd_inp = open(av[1], O_RDONLY);
+	if (!data->fd_inp)
+		error_handler("cant open input file");
+	data->fd_out = open(av[4], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (!data->fd_out)
+		error_handler("error with output file");
+}
+
+static void	_init_data(char **av, t_data *data, char **env)
+{
+	char	**all_env_paths;
+
+	data->cmd1 = ft_split(av[2], ' ');
+	data->cmd2 = ft_split(av[3], ' ');
+	data->env_path = _get_path(env);
+	all_env_paths = ft_split(data->env_path, ':');
+	data->cmd1_path = find_exec(data->cmd1, all_env_paths);
+	data->cmd2_path = find_exec(data->cmd2, all_env_paths);
+}
 
 int	main(int ac, char **av, char **env)
 {
-	int		fd1[2];
-	int		fd2[2];
-	pid_t	pid;
+	t_data	data;
+	int		fd[2];
+	int		pid1;
+	int		pid2;
 
-
-	while (**env)
-	{
-		printf("%s\n", *env);
-		env++;
-	}
-
-
-	if (ac < 5)
-		exit(perror("wrong parameters"), EXIT_FAILURE);
-
-	if (!fd[0] = open(av[1], O_RDONLY))
-		exit(perror("Error opening reading file"), EXIT_FAILURE);
-	if (!fd[1] = open(av[5], O_WRONLY | O_CREAT | O_APPEND, 0644)
-		exit(perror("Error creating output file"), EXIT_FAILURE);
-
+	if (ac != 5)
+		error_handler("wrong parameters");
+	_init_files(av, &data);
+	_init_data(av, &data, env);
 	if (pipe(fd) == -1)
-        exit(perror("pipe failed"), EXIT_FAILURE);
-	
-    if (pid = fork() == -1)
-        exit(perror("fork failed"), EXIT_FAILURE);
-
-	if (pid == 0)
+		error_handler("pipe failed");
+	pid1 = fork();
+	if (pid1 < 0)
+		error_handler("fork failed");
+	if (pid1 == 0)
 	{
-		if (dup2(fd[0], STDIN_FILENO) == -1)
+		if (dup2(fd[1], STDOUT_FILENO) < 0)
 		{
-			perror("Error redirecting file to stdin");
 			close(fd[0]);
-			exit(EXIT_FAILURE);
-		}
-		if (dup2(fd[1], STDOUT_FILENO) == -1)
-		{
-			perror("Error redirecting file to stdin");
 			close(fd[1]);
-			exit(EXIT_FAILURE);
+			error_handler("error redirecting to stdout");
 		}
+		execve(data.cmd1_path, data.cmd1, env);
 	}
-
+	pid2 = fork();
+	if (pid2 < 0)
+		error_handler("fork failed");
+	if (pid2 == 0)
+	{
+		if (dup2(fd[0], STDIN_FILENO) < 0)
+		{
+			close(fd[0]);
+			close(fd[1]);
+			error_handler("error redirecting to stdin");
+		}
+		execve(data.cmd2_path, data.cmd2, env);
+	}
+	waitpid(pid1, NULL, 0);
+	waitpid(pid2, NULL, 0);
 	close(fd[0]);
-	close(fd_[1]);
+	close(fd[1]);
+	close(data.fd_inp);
+	close(data.fd_out);
 }

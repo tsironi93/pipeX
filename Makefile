@@ -7,6 +7,10 @@ HEADER	=	pipex.h
 CC		=	cc
 CFLAGS	=	-Wall -Wextra -Werror -O2 -g
 
+# Libft directory
+LIBFT_DIR = ./libft
+LIBFT = $(LIBFT_DIR)/libft.a
+
 SRC_DIR			=	src
 OBJ_DIR			=	src_o
 SRC_BONUS_DIR	=	src_bonus
@@ -33,7 +37,6 @@ SHIFT	=	$(eval O=$(shell echo $$((($(O)%13)+1))))
 LBOR	=	"▌│█║▌║▌║ "
 RBOR	= 	" ║▌║▌║█│▌"
 
-
 all: $(NAME)
 	@echo "$(CYAN)"
 	@echo "\t⠀⠀⠀⠀⠀⣀⣤⡴⢀⣠⣤⣴⣶⡶⠿⠿⠿⠿⣿⣿⣶⣶⣦⣟⡶⢦⣄⡀⠀⠀⠀"
@@ -56,8 +59,8 @@ all: $(NAME)
 	@echo "Made By Turmoil!\t  ⠙⡇"
 	@echo "$(WHITE)"
 
-$(NAME): $(OBJ)
-	@$(CC) $(CFLAGS) -o $(NAME) $(OBJ)
+$(NAME): $(OBJ) $(LIBFT)
+	@$(CC) $(CFLAGS) -o $(NAME) $(OBJ) -L$(LIBFT_DIR) -lft
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	@$(CC) $(CFLAGS) -c $< -o $@
@@ -66,20 +69,30 @@ $(OBJ_DIR):
 	@mkdir -p $(OBJ_DIR)
 
 %.o: %.c $(HEADER)
-	@$(CC) $(FLAGS) -c $< -o $@
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+submodule:
+	@echo "$(CYAN)$(LBOR) Initializing submodules... $(RBOR)$(WHITE)"
+	@git submodule update --init --recursive
+	@$(MAKE) -C $(LIBFT_DIR)
 
 clean:
 	@echo "\n\t   $(PINK)$(LBOR)Cleaning$(RBOR)$(WHITE)\n"
 	@rm -rf $(OBJ_DIR) $(OBJ_BONUS_DIR)
+	$(MAKE) -C $(LIBFT_DIR) clean
 
 fclean: clean
 	@echo "\n\t   $(CYAN)$(LBOR)Clean af$(RBOR)$(WHITE)\n"
 	@rm -rf $(NAME) $(BONUS_NAME)
+	$(MAKE) -C $(LIBFT_DIR) fclean
 
 re:
 	@echo "\n\t$(BLUE)$(LBOR)Awwwww shiiiiiit$(RBOR)$(WHITE)\n"
 	@echo "\n\t$(BLUE)$(LBOR)Here we go again$(RBOR)$(WHITE)\n"
 	@$(MAKE) fclean
 	@$(MAKE) all
+
+$(LIBFT):
+	@$(MAKE) -C $(LIBFT_DIR)
 
 .PHONY: all clean fclean re bonus
