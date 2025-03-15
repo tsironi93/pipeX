@@ -1,11 +1,4 @@
 #include "../pipex.h"
-#include <unistd.h>
-
-void	error_handler(char *error)
-{
-	perror(error);
-	exit(EXIT_FAILURE);
-}
 
 char	*find_exec(char **cmd, char **dirs)
 {
@@ -22,6 +15,7 @@ char	*find_exec(char **cmd, char **dirs)
 		free(path);
 		dirs++;
 	}
+	error_handler("command not found", errno);
 	return (NULL);
 }
 
@@ -42,11 +36,11 @@ char	*_get_path(char **envp)
 static void	_init_files(char **av, t_data *data)
 {
 	data->fd_inp = open(av[1], O_RDONLY);
-	if (!data->fd_inp)
-		error_handler("cant open input file");
+	if (data->fd_inp < 0)
+		error_handler("cant open input file", errno);
 	data->fd_out = open(av[4], O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	if (!data->fd_out)
-		error_handler("error with output file");
+	if (data->fd_out < 0)
+		error_handler("error with output file", errno);
 }
 
 static void	_init_data(char **av, t_data *data, char **env)
@@ -59,51 +53,20 @@ static void	_init_data(char **av, t_data *data, char **env)
 	all_env_paths = ft_split(data->env_path, ':');
 	data->cmd1_path = find_exec(data->cmd1, all_env_paths);
 	data->cmd2_path = find_exec(data->cmd2, all_env_paths);
+	free2d(all_env_paths);
 }
 
 int	main(int ac, char **av, char **env)
 {
 	t_data	data;
 	int		fd[2];
-	int		pid1;
-	int		pid2;
 
 	if (ac != 5)
-		error_handler("wrong parameters");
+		error_handler("wrong parameters", 3);
 	_init_files(av, &data);
 	_init_data(av, &data, env);
 	if (pipe(fd) == -1)
-		error_handler("pipe failed");
-	pid1 = fork();
-	if (pid1 < 0)
-		error_handler("fork failed");
-	if (pid1 == 0)
-	{
-		if (dup2(fd[1], STDOUT_FILENO) < 0)
-		{
-			close(fd[0]);
-			close(fd[1]);
-			error_handler("error redirecting to stdout");
-		}
-		execve(data.cmd1_path, data.cmd1, env);
-	}
-	pid2 = fork();
-	if (pid2 < 0)
-		error_handler("fork failed");
-	if (pid2 == 0)
-	{
-		if (dup2(fd[0], STDIN_FILENO) < 0)
-		{
-			close(fd[0]);
-			close(fd[1]);
-			error_handler("error redirecting to stdin");
-		}
-		execve(data.cmd2_path, data.cmd2, env);
-	}
-	waitpid(pid1, NULL, 0);
-	waitpid(pid2, NULL, 0);
-	close(fd[0]);
-	close(fd[1]);
-	close(data.fd_inp);
-	close(data.fd_out);
+		error_handler("pipe failed", errno);
+	pipex(&data, env, fd);
+	freedata(&data);
 }
